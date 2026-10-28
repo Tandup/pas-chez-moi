@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Pas chez moi !</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Pas chez moi">
+<meta name="theme-color" content="#2b1d14">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="top">
+    <div class="pill" id="ragePill"><span>Rage</span><div class="bar"><i id="rage"></i></div></div>
+    <div class="pill big" id="timer">0:30</div>
+    <div class="pill" id="phase">Préparation</div>
+  </div>
+  <div id="hint"></div>
+  <div id="trapbar"></div>
+  <button id="go" class="btn">C'est parti !</button>
+  <div id="joyzone"><div id="joy"><div id="knob"></div></div></div>
+  <div id="actions">
+    <button id="btnPlace" class="round small">Poser</button>
+    <button id="btnThrow" class="round">Lancer</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <div class="card">
+    <h1 id="ovTitle">Pas chez moi !</h1>
+    <p id="ovText">Un cambrioleur rôde autour de la maison. Pose tes pièges, puis protège la télé, l'ordinateur et la console jusqu'au retour des parents.</p>
+    <div class="row" id="ovButtons">
+      <button class="btn" data-dur="60">1 minute</button>
+      <button class="btn alt" data-dur="120">2 minutes</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+<script>
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>

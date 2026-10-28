@@ -1,0 +1,86 @@
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden; background: #2b1d14;
+  font-family: ui-rounded, "SF Pro Rounded", "Arial Rounded MT Bold", system-ui, sans-serif;
+  color: #fff; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  touch-action: none; overscroll-behavior: none;
+}
+canvas { position: absolute; display: block; touch-action: none; }
+.hidden { display: none !important; }
+
+#hud { position: absolute; inset: 0; pointer-events: none; }
+#hud button, #trapbar { pointer-events: auto; }
+
+#top {
+  position: absolute; top: max(10px, env(safe-area-inset-top)); left: 0; right: 0;
+  display: flex; justify-content: space-between; align-items: center; padding: 0 16px;
+}
+.pill {
+  background: rgba(0,0,0,.5); border-radius: 999px; padding: 8px 16px;
+  font-size: 18px; display: flex; align-items: center; gap: 10px; min-width: 150px; justify-content: center;
+}
+.pill.big { font-size: 30px; min-width: 120px; font-variant-numeric: tabular-nums; }
+.bar { width: 90px; height: 12px; border-radius: 6px; background: rgba(255,255,255,.25); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: #e24b4a; transition: width .3s; }
+
+#hint {
+  position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,.55); border-radius: 14px; padding: 8px 16px; font-size: 17px; text-align: center;
+  max-width: 80%;
+}
+#hint:empty { display: none; }
+
+#trapbar {
+  position: absolute; bottom: max(12px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; background: rgba(0,0,0,.5); padding: 8px; border-radius: 18px;
+}
+.trap {
+  position: relative; width: 64px; height: 64px; border-radius: 14px; border: 3px solid transparent;
+  background: rgba(255,255,255,.92); font-size: 32px; line-height: 1; padding: 0; color: #2c2c2a;
+}
+.trap.sel { border-color: #97c459; background: #fff; transform: translateY(-4px); }
+.trap.empty { opacity: .35; }
+.trap .n {
+  position: absolute; right: -6px; top: -6px; background: #e8613c; color: #fff; font-size: 14px;
+  min-width: 24px; height: 24px; line-height: 24px; border-radius: 12px; font-weight: bold;
+}
+
+.btn {
+  font: inherit; font-size: 22px; font-weight: bold; color: #fff; background: #e8613c;
+  border: 0; border-radius: 16px; padding: 14px 26px; box-shadow: 0 5px 0 #a8401f;
+}
+.btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #a8401f; }
+.btn.alt { background: #2f78c4; box-shadow: 0 5px 0 #1d4f85; }
+.btn.alt:active { box-shadow: 0 2px 0 #1d4f85; }
+#go { position: absolute; right: 24px; bottom: max(24px, env(safe-area-inset-bottom)); }
+
+#joyzone { position: absolute; left: 0; top: 80px; bottom: 0; width: 42%; pointer-events: auto; }
+#joy {
+  position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
+  background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,.5); left: 110px; top: calc(100% - 120px);
+}
+#knob {
+  position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px;
+  border-radius: 50%; background: rgba(255,255,255,.75);
+}
+
+#actions { position: absolute; right: 24px; bottom: max(24px, env(safe-area-inset-bottom)); display: flex; align-items: flex-end; gap: 14px; }
+.round {
+  font: inherit; font-weight: bold; color: #fff; border: 0; border-radius: 50%;
+  width: 104px; height: 104px; font-size: 20px; background: #e8613c; box-shadow: 0 5px 0 #a8401f;
+}
+.round.small { width: 78px; height: 78px; font-size: 16px; background: #3b8f2e; box-shadow: 0 5px 0 #24601a; }
+.round:active { transform: translateY(3px); box-shadow: none; }
+.round.cool { opacity: .45; }
+
+#overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(20,12,6,.6); padding: 16px;
+}
+.card {
+  background: #fff7ea; color: #3a2a1a; border-radius: 28px; padding: 32px 36px; max-width: 560px; text-align: center;
+  box-shadow: 0 10px 0 rgba(0,0,0,.25);
+}
+.card h1 { margin: 0 0 12px; font-size: 44px; color: #e8613c; }
+.card p { font-size: 20px; line-height: 1.45; margin: 0 0 24px; }
+.row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
