@@ -3,7 +3,7 @@
 
 // ---------- Carte ----------
 const T = 32, COLS = 20, ROWS = 15, W = COLS * T, H = ROWS * T;
-const PREP_TIME = 30, STEAL_TIME = 3;
+const PREP_TIME = 30, STEAL_TIME = 5, BALL_IMMUNITY = 5, GIFT_EVERY = 12;
 
 // . jardin, T arbre, # mur, W fenêtre, D porte
 // l salon, k cuisine, h couloir, b chambre
@@ -241,10 +241,10 @@ function newGame(duration) {
   const [sc, sr] = SPAWNS[Math.floor(Math.random() * SPAWNS.length)];
   G = {
     phase: 'prep', prepLeft: PREP_TIME, timeLeft: duration, duration, t: 0,
-    traps: new Map(), inv: inv0(), sel: 'banane',
+    traps: new Map(), inv: inv0(), sel: 'banane', ammo: 3, items: [], giftT: 8,
     kid: { x: center(9), y: center(9), dir: { x: 0, y: 1 }, walk: 0, cd: 0 },
     bur: { x: center(sc), y: center(sr), state: 'wait', path: [], entry: null, target: null,
-      stun: 0, slow: 0, rage: 0, steal: 0, enterT: 0, resume: null, bob: 0, face: 1 },
+      stun: 0, slow: 0, immune: 0, rage: 0, steal: 0, enterT: 0, resume: null, bob: 0, face: 1 },
     balls: [], fx: [], hits: 0, broken: new Set(), result: null,
   };
   buildTrapBar();
@@ -267,17 +267,39 @@ function repath(b) {
   }
 }
 
+// Une balle ne fait que l'arrêter : le vol reprend là où il en était.
+// Seul un piège sous ses pieds lui fait lâcher l'objet.
 function stunBurglar(b, sec, say, color) {
-  if (b.state === 'stealing') b.steal = Math.max(0, b.steal - 1.5);
   if (b.state !== 'stunned') b.resume = b.state === 'stealing' ? 'inside' : b.state;
   b.state = 'stunned';
   b.stun = Math.max(b.stun, sec);
   fx(b.x, b.y - 34, say, color);
 }
 
+function checkTrap(b) {
+  const c = cell(b.x), r = cell(b.y), k = key(c, r);
+  if (!G.traps.has(k) || Math.hypot(b.x - center(c), b.y - center(r)) > 12) return false;
+  const def = TRAPS[G.traps.get(k)];
+  G.traps.delete(k);
+  b.rage += 1;
+  G.hits += 1;
+  SND.trap();
+  if (b.steal > 0 || b.state === 'stealing') {
+    b.steal = 0;
+    const others = VALUABLES.filter(v => v !== b.target);
+    b.target = others[Math.floor(Math.random() * others.length)];
+    fx(b.x, b.y - 54, 'Bon… ' + b.target.name + ' alors !', '#ffd0c0', 13);
+    if (b.state === 'stealing') b.state = 'inside';
+  }
+  if (def.slow) { b.slow = def.slow; fx(b.x, b.y - 34, def.say, '#fac775'); repath(b); }
+  else stunBurglar(b, def.stun, def.say, '#fff27a');
+  return true;
+}
+
 function updateBurglar(b, dt) {
   b.bob += dt * (b.state === 'stunned' ? 0 : 10);
   if (b.slow > 0) b.slow -= dt;
+  if (b.immune > 0) b.immune -= dt;
   if (b.state === 'wait') return;
   if (b.state === 'stunned') {
     b.stun -= dt;
@@ -295,8 +317,9 @@ function updateBurglar(b, dt) {
     }
     return;
   }
+  if ((b.state === 'inside' || b.state === 'stealing') && checkTrap(b)) return;
   if (b.state === 'stealing') {
-    b.steal += dt;
+    b.steal += dt * (b.slow > 0 ? 0.4 : 1);
     if (b.steal >= STEAL_TIME) endGame(false);
     return;
   }
@@ -319,16 +342,6 @@ function updateBurglar(b, dt) {
   if (Math.abs(dx) > 1) b.face = Math.sign(dx);
   if (dist <= step) {
     b.x = tx; b.y = ty; b.path.shift();
-    const k = key(tc, tr), trap = G.traps.get(k);
-    if (trap && b.state === 'inside') {
-      G.traps.delete(k);
-      const def = TRAPS[trap];
-      b.rage += 1;
-      G.hits += 1;
-      SND.trap();
-      if (def.slow) { b.slow = def.slow; fx(b.x, b.y - 34, def.say, '#fac775'); }
-      else stunBurglar(b, def.stun, def.say, '#fff27a');
-    }
   } else {
     b.x += dx / dist * step; b.y += dy / dist * step;
   }
@@ -369,9 +382,40 @@ function throwBall() {
   if (!G || G.phase !== 'defense') return;
   const k = G.kid;
   if (k.cd > 0) return;
-  k.cd = 2.2;
-  G.balls.push({ x: k.x + k.dir.x * 12, y: k.y - 6 + k.dir.y * 12, vx: k.dir.x * 330, vy: k.dir.y * 330, life: 1.4 });
+  if (G.ammo <= 0) { hint('Plus de balles ! Ramasse-les par terre.', 2); return; }
+  k.cd = 0.5;
+  G.ammo--;
+  G.balls.push({ x: k.x + k.dir.x * 12, y: k.y - 6 + k.dir.y * 12, vx: k.dir.x * 330, vy: k.dir.y * 330,
+    life: 1.4, lc: cell(k.x), lr: cell(k.y) });
   SND.throw();
+}
+
+function spawnGift() {
+  for (let n = 0; n < 60; n++) {
+    const c = 4 + Math.floor(Math.random() * 12), r = 3 + Math.floor(Math.random() * 9);
+    if (!isFloor(c, r) || G.traps.has(key(c, r)) || G.items.some(i => i.c === c && i.r === r)) continue;
+    if (c === cell(G.kid.x) && r === cell(G.kid.y)) continue;
+    G.items.push({ c, r, type: 'gift' });
+    fx(center(c), center(r) - 20, 'Cadeau !', '#fac775', 13);
+    return;
+  }
+}
+
+// L'enfant ramasse ses balles et les cadeaux (un piège au hasard) en marchant dessus
+function pickUp() {
+  const kc = cell(G.kid.x), kr = cell(G.kid.y);
+  G.items = G.items.filter(it => {
+    if (it.c !== kc || it.r !== kr) return true;
+    if (it.type === 'ball') G.ammo++;
+    else {
+      const types = Object.keys(TRAPS), t = types[Math.floor(Math.random() * types.length)];
+      G.inv[t]++;
+      buildTrapBar();
+      fx(G.kid.x, G.kid.y - 34, '+' + TRAPS[t].icon, '#fff', 20);
+    }
+    SND.place();
+    return false;
+  });
 }
 
 function placeTrapAt(c, r) {
@@ -429,19 +473,32 @@ function update(dt) {
   } else if (G.phase === 'defense') {
     G.timeLeft -= dt;
     updateKid(G.kid, dt);
+    pickUp();
     updateBurglar(G.bur, dt);
+    if ((G.giftT -= dt) <= 0) {
+      G.giftT = GIFT_EVERY;
+      if (G.items.filter(i => i.type === 'gift').length < 2) spawnGift();
+    }
     if (G.timeLeft <= 0) { G.timeLeft = 0; endGame(true); }
   } else if (G.phase === 'over') {
     G.bur.bob += dt * 4;
   }
   for (const ball of G.balls) {
     ball.x += ball.vx * dt; ball.y += ball.vy * dt; ball.life -= dt;
-    if (!isFloor(cell(ball.x), cell(ball.y + 6))) { ball.life = 0; fx(ball.x, ball.y, 'pof', '#fff', 12); }
+    const c = cell(ball.x), r = cell(ball.y + 6);
+    if (isFloor(c, r)) { ball.lc = c; ball.lr = r; }
+    else { ball.life = 0; fx(ball.x, ball.y, 'pof', '#fff', 12); }
     const b = G.bur;
     if (ball.life > 0 && (b.state === 'inside' || b.state === 'stealing') && Math.hypot(ball.x - b.x, ball.y - (b.y - 8)) < 20) {
-      ball.life = 0; b.rage += 0.3; SND.hit();
-      stunBurglar(b, 1.3, 'Bong !', '#fff');
+      ball.life = 0;
+      if (b.immune > 0) fx(b.x, b.y - 34, 'Même pas mal !', '#fff');
+      else {
+        b.rage += 0.3; SND.hit();
+        stunBurglar(b, 1, 'Bong !', '#fff');
+        b.immune = BALL_IMMUNITY;
+      }
     }
+    if (ball.life <= 0) G.items.push({ c: ball.lc, r: ball.lr, type: 'ball' });
   }
   G.balls = G.balls.filter(b => b.life > 0);
   for (const f of G.fx) f.t += dt;
@@ -478,6 +535,10 @@ function drawBurglar(b) {
   const s = moving ? Math.sin(b.bob) * 2.5 : 0;
   const x = b.x, y = b.y - (b.state === 'entering' ? 4 : 0);
   ellipse(ctx, x, b.y + 14, 14, 5, 'rgba(0,0,0,.22)');
+  if (b.immune > 0 && b.state !== 'stunned') {
+    ctx.beginPath(); ctx.arc(x, y - 6, 26, 0, Math.PI * 2);
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+  }
   if (b.slow > 0) ellipse(ctx, x, b.y + 13, 16, 6, 'rgba(239,159,39,.75)');
   circle(ctx, x - 15 * b.face, y + 2, 10, '#c9ad7c');
   ctx.fillStyle = '#a88a5c'; ctx.fillRect(x - 15 * b.face - 3, y - 9, 6, 5);
@@ -585,6 +646,24 @@ function render() {
     ctx.fillText(TRAPS[type].icon, center(c), center(r) + 1);
   }
 
+  for (const it of G.items) {
+    const x = center(it.c), y = center(it.r);
+    if (it.type === 'ball') {
+      ellipse(ctx, x, y + 9, 5, 2, 'rgba(0,0,0,.2)');
+      circle(ctx, x, y + 4, 5, '#e24b4a');
+      circle(ctx, x - 1.5, y + 2.5, 1.6, '#fff');
+    } else {
+      const bob = Math.sin(G.t * 4 + it.c) * 2;
+      ellipse(ctx, x, y + 10, 10, 3, 'rgba(0,0,0,.2)');
+      rr(ctx, x - 9, y - 6 + bob, 18, 15, 3); ctx.fillStyle = '#e8613c'; ctx.fill();
+      ctx.fillStyle = '#fac775';
+      ctx.fillRect(x - 2, y - 6 + bob, 4, 15);
+      ctx.fillRect(x - 9, y - 1 + bob, 18, 4);
+      circle(ctx, x - 4, y - 8 + bob, 3.5, '#fac775');
+      circle(ctx, x + 4, y - 8 + bob, 3.5, '#fac775');
+    }
+  }
+
   VALUABLES.forEach(drawValuable);
 
   const b = G.bur;
@@ -642,7 +721,7 @@ function showHud() {
   joyzone.classList.toggle('hidden', prep);
   actions.classList.toggle('hidden', prep);
   if (prep) hint('Choisis un piège en bas, puis touche le sol pour le poser.', 6);
-  else hint('Le cambrioleur arrive ! Tiens bon jusqu\'au retour des parents.', 4);
+  else hint('Les balles l\'arrêtent un instant. Pour qu\'il lâche un objet, pose un piège sous ses pieds !', 6);
 }
 
 const fmt = s => { s = Math.ceil(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
@@ -652,7 +731,9 @@ function updateHud() {
   if (txt !== lastTimer) { timerEl.textContent = txt; lastTimer = txt; }
   phaseEl.textContent = G.phase === 'prep' ? 'Préparation' : 'Parents bientôt là';
   rageEl.style.width = Math.min(100, G.bur.rage / 8 * 100) + '%';
-  btnThrow.classList.toggle('cool', G.kid.cd > 0);
+  btnThrow.classList.toggle('cool', G.kid.cd > 0 || G.ammo <= 0);
+  const throwTxt = 'Lancer ' + G.ammo;
+  if (btnThrow.textContent !== throwTxt) btnThrow.textContent = throwTxt;
 }
 
 function showOverlay(win) {
@@ -717,5 +798,6 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { if (KEYMAP[e.key]) keys.delete(KEYMAP[e.key]); });
 document.addEventListener('gesturestart', e => e.preventDefault());
 
+if (location.search.includes('debug')) window.debugGame = () => G;
 requestAnimationFrame(frame);
 })();
